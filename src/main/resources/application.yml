@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3316/video_watch
+    username: root
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 60MB
+server:
+  port: 8001
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+
