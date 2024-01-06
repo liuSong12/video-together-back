@@ -10,4 +10,8 @@
         <result column="last_updata_time" property="lastUpdataTime" />
     </resultMap>
 
+    <select id="getUser" resultType="com.videotogether.pojo.User">
+        select * from user where id = #{id}
+    </select>
+
 </mapper>

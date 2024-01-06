@@ -24,6 +24,7 @@ target/
 /nbbuild/
 slicevideo
 upload
+avatar
 /dist/
 /nbdist/
 /.nb-gradle/

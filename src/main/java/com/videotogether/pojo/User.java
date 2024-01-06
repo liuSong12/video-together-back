@@ -1,5 +1,6 @@
 package com.videotogether.pojo;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -28,6 +29,8 @@ public class User implements Serializable {
     private String phone;
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
+    private String userName;
+    private String avatar;
 
     private LocalDateTime createTime;
 

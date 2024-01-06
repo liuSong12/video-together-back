@@ -1,19 +1,19 @@
 package com.videotogether.controller;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 
 import com.google.gson.Gson;
 import com.videotogether.config.JwtConfig;
-import com.videotogether.pojo.Message;
+import com.videotogether.pojo.*;
+import com.videotogether.service.impl.UserServiceImpl;
 import jakarta.websocket.*;
 import jakarta.websocket.server.ServerEndpoint;
 
-import lombok.Data;
+import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import lombok.extern.slf4j.Slf4j;
@@ -21,8 +21,15 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @ServerEndpoint("/websocket")
 @Component
-@Data
 public class SoketController {
+
+    private static UserServiceImpl userService;
+
+    @Autowired
+    public void setUserService(UserServiceImpl userService) {
+        SoketController.userService = userService;
+    }
+
     private static final Gson gson = new Gson();
     //与某个客户端的连接会话，需要通过它来给客户端发送数据
     private Session session;
@@ -61,8 +68,11 @@ public class SoketController {
             this.session = session;
             webSockets.add(this);
             sessionPool.put(Integer.valueOf(userId), session);
-            log.info("【websocket消息】有新的连接，总数为:" + webSockets.size());
-        } catch (Exception e) {
+            List<UserVo> allUsers = getAllUsers();
+            String json = gson.toJson(allUsers);
+            Message message = new Message(null, json,null, "online", null);
+            sendAllMessage(gson.toJson(message));
+        } catch (Exception ignored) {
         }
     }
 
@@ -74,8 +84,11 @@ public class SoketController {
         try {
             webSockets.remove(this);
             sessionPool.remove(this.userId);
-            log.info("【websocket消息】连接断开，总数为:" + webSockets.size());
-        } catch (Exception e) {
+            List<UserVo> allUsers = getAllUsers();
+            String json = gson.toJson(allUsers);
+            Message message = new Message(null, json,null, "online", null);
+            sendAllMessage(gson.toJson(message));
+        } catch (Exception ignored) {
 
         }
     }
@@ -103,6 +116,34 @@ public class SoketController {
             case "timeupdate":
             case "synchronizeTimeAsRoomHost":
                 sendRoomMessage(roomId, type, uId, msg);
+                break;
+            case "chat":
+                ChatMsg chatMsg = gson.fromJson(msg.toString(), ChatMsg.class);
+                Integer from_uId = chatMsg.getFrom();
+                if (from_uId == null) {
+                    return;
+                }
+                User user = userService.getById(from_uId);
+                chatMsg.setAvatar(user.getAvatar());
+                chatMsg.setUserName(user.getUserName());
+                sendRoomMessage(roomId, type, uId, chatMsg);
+                break;
+            case "call":
+                UserVo toId = gson.fromJson(msg.toString(), UserVo.class);
+                Integer id = toId.getId();
+
+                User fromUser = userService.getById(uId);
+                UserVo fromUserVo = new UserVo();
+                BeanUtils.copyProperties(fromUser, fromUserVo);
+
+                User toUser = userService.getById(id);
+                UserVo toUserVo = new UserVo();
+                BeanUtils.copyProperties(toUser, toUserVo);
+
+                VideChatMessage videChatMessage = new VideChatMessage(fromUserVo, toUserVo);
+                String json = gson.toJson(videChatMessage);
+                sendOneMessage(id, json, type, roomId);
+                break;
             default:
                 break;
         }
@@ -136,7 +177,7 @@ public class SoketController {
                     try {
                         String json = gson.toJson(new Message(userId, message, roomId, type, null));
                         webSocket.session.getAsyncRemote().sendText(json);
-                    } catch (Exception e) {
+                    } catch (Exception ignored) {
                     }
                 }
             }
@@ -148,15 +189,39 @@ public class SoketController {
      *
      * @param roomId
      */
-    public static List<Integer> getRoomUsers(Integer roomId) {
-        List<Integer> list = new ArrayList<>();
+    public static List<UserVo> getRoomUsers(Integer roomId) {
+        List<UserVo> list = new ArrayList<>();
         for (SoketController webSocket : webSockets) {
             if (webSocket.roomId != null && webSocket.roomId.equals(roomId)) {
                 if (webSocket.session != null && webSocket.session.isOpen()) {
                     try {
-                        list.add(webSocket.userId);
-                    } catch (Exception e) {
+                        User byId = userService.getById(webSocket.userId);
+                        UserVo userVo = new UserVo();
+                        BeanUtils.copyProperties(byId, userVo);
+                        list.add(userVo);
+                    } catch (Exception ignored) {
                     }
+                }
+            }
+        }
+        return list;
+    }
+
+    /**
+     * 获取所有用户
+     *
+     * @return
+     */
+    public static List<UserVo> getAllUsers() {
+        List<UserVo> list = new ArrayList<>();
+        for (SoketController webSocket : webSockets) {
+            if (webSocket.session != null && webSocket.session.isOpen()) {
+                try {
+                    User byId = userService.getById(webSocket.userId);
+                    UserVo userVo = new UserVo();
+                    BeanUtils.copyProperties(byId, userVo);
+                    list.add(userVo);
+                } catch (Exception ignored) {
                 }
             }
         }
@@ -172,25 +237,49 @@ public class SoketController {
                     try {
                         String json = gson.toJson(new Message(userId1, message, roomId, type, null));
                         webSocket.session.getAsyncRemote().sendText(json);
-                    } catch (Exception e) {
+                    } catch (Exception ignored) {
                     }
                 }
             }
         }
     }
 
-    //根据用户id设置房间号
+    public void setRoomId(Integer roomId) {
+        this.roomId = roomId;
+    }
+
+    /**
+     * 根据用户id设置房间号
+     * @param userId
+     * @param roomId
+     */
     public static void setRoomIdByUserId(Integer userId, Integer roomId) {
         for (SoketController webSocket : webSockets) {
             try {
                 if (webSocket.session != null && webSocket.session.isOpen() && webSocket.userId.equals(userId)) {
                     webSocket.setRoomId(roomId);
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
+            } catch (Exception ignored) {
             }
         }
     }
+
+    /**
+     * 根据用户id获取房间号
+     *
+     * @param userId
+     * @return
+     */
+    public static Integer getRoomIdByUserId(Integer userId) {
+        for (SoketController webSocket : webSockets) {
+            if (webSocket.session != null && webSocket.session.isOpen() && webSocket.userId.equals(userId)) {
+                return webSocket.roomId;
+            }
+        }
+        return null;
+    }
+
+
 
 
     /**
@@ -199,14 +288,12 @@ public class SoketController {
      * @param message
      */
     public static void sendAllMessage(String message) {
-        log.info("【websocket消息】广播消息:" + message);
         for (SoketController webSocket : webSockets) {
             try {
                 if (webSocket.session != null && webSocket.session.isOpen()) {
                     webSocket.session.getAsyncRemote().sendText(message);
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
+            } catch (Exception ignored) {
             }
         }
     }
@@ -214,7 +301,7 @@ public class SoketController {
     /**
      * 此为单人消息，指定用户id
      *
-     * @param userId
+     * @param userId 发给谁
      * @param message
      * @param type
      * @param roomId
@@ -225,8 +312,7 @@ public class SoketController {
             try {
                 String json = gson.toJson(new Message(userId, message, roomId, type, null));
                 session.getAsyncRemote().sendText(json);
-            } catch (Exception e) {
-                e.printStackTrace();
+            } catch (Exception ignored) {
             }
         }
     }
@@ -238,8 +324,7 @@ public class SoketController {
             if (session != null && session.isOpen()) {
                 try {
                     session.getAsyncRemote().sendText(message);
-                } catch (Exception e) {
-                    e.printStackTrace();
+                } catch (Exception ignored) {
                 }
             }
         }
