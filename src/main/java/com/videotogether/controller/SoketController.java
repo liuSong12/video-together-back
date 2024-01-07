@@ -70,7 +70,7 @@ public class SoketController {
             sessionPool.put(Integer.valueOf(userId), session);
             List<UserVo> allUsers = getAllUsers();
             String json = gson.toJson(allUsers);
-            Message message = new Message(null, json,null, "online", null);
+            Message message = new Message(null, json, null, "online", null);
             sendAllMessage(gson.toJson(message));
         } catch (Exception ignored) {
         }
@@ -86,7 +86,7 @@ public class SoketController {
             sessionPool.remove(this.userId);
             List<UserVo> allUsers = getAllUsers();
             String json = gson.toJson(allUsers);
-            Message message = new Message(null, json,null, "online", null);
+            Message message = new Message(null, json, null, "online", null);
             sendAllMessage(gson.toJson(message));
         } catch (Exception ignored) {
 
@@ -129,8 +129,17 @@ public class SoketController {
                 sendRoomMessage(roomId, type, uId, chatMsg);
                 break;
             case "call":
-                UserVo toId = gson.fromJson(msg.toString(), UserVo.class);
+            case "accept":
+            case "offer":
+            case "answer":
+            case "candidate":
+            case "hangup":
+                System.out.println("type:"+type);
+                UserVo toId = gson.fromJson(new Gson().toJson(msg), UserVo.class);
                 Integer id = toId.getId();
+                Object answer = toId.getAnswer();
+                Object candidate = toId.getCandidate();
+                Object offer = toId.getOffer();
 
                 User fromUser = userService.getById(uId);
                 UserVo fromUserVo = new UserVo();
@@ -139,8 +148,7 @@ public class SoketController {
                 User toUser = userService.getById(id);
                 UserVo toUserVo = new UserVo();
                 BeanUtils.copyProperties(toUser, toUserVo);
-
-                VideChatMessage videChatMessage = new VideChatMessage(fromUserVo, toUserVo);
+                VideChatMessage videChatMessage = new VideChatMessage(fromUserVo, toUserVo,offer,answer,candidate);
                 String json = gson.toJson(videChatMessage);
                 sendOneMessage(id, json, type, roomId);
                 break;
@@ -250,6 +258,7 @@ public class SoketController {
 
     /**
      * 根据用户id设置房间号
+     *
      * @param userId
      * @param roomId
      */
@@ -280,8 +289,6 @@ public class SoketController {
     }
 
 
-
-
     /**
      * 此为广播消息所有人都可以接收
      *
@@ -301,7 +308,7 @@ public class SoketController {
     /**
      * 此为单人消息，指定用户id
      *
-     * @param userId 发给谁
+     * @param userId  发给谁
      * @param message
      * @param type
      * @param roomId

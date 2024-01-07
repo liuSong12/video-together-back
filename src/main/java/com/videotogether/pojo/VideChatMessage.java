@@ -10,4 +10,8 @@ import lombok.NoArgsConstructor;
 public class VideChatMessage {
     private UserVo fromUser;
     private UserVo toUser;
+
+    private Object offer;
+    private Object answer;
+    private Object candidate;
 }
