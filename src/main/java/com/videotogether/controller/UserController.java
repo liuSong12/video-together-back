@@ -1,32 +1,34 @@
 package com.videotogether.controller;
 
 
+import ch.qos.logback.core.util.TimeUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.google.gson.Gson;
+import com.videotogether.anno.AnnoLastVideoTogether;
+import com.videotogether.anno.AnnoUpdateUser;
 import com.videotogether.commen.Result;
 import com.videotogether.config.JwtConfig;
-import com.videotogether.mapper.UserMapper;
-import com.videotogether.pojo.Message;
 import com.videotogether.pojo.User;
 import com.videotogether.pojo.UserVo;
 import com.videotogether.service.impl.UserServiceImpl;
+import com.videotogether.sms.SendSmsMessage;
 import com.videotogether.utils.Utils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import org.slf4j.helpers.Util;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.*;
-import java.util.ArrayList;
+import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
 /**
  * <p>
@@ -45,12 +47,28 @@ public class UserController {
     private SoketController soketController;
     @Autowired
     private Gson gson;
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
 
     private final int BUFFER_SIZE = 1024 * 1024;
 
 
+    @AnnoUpdateUser
     @PostMapping("/login")
     public Result<UserVo> login(@RequestBody User user, HttpServletResponse response) {
+        if(user.getCode()==null || user.getPhone()==null){
+            throw new RuntimeException("字段缺失");
+        }
+        // 获取值
+        String value = (String) redisTemplate.opsForValue().get(user.getPhone());
+        if(value==null){
+           throw new RuntimeException("验证码过期");
+        }
+        if(!user.getCode().equals(value)){
+            throw new RuntimeException("验证码错误");
+        }
+        //清除缓存
+        redisTemplate.delete(user.getPhone());
         LambdaQueryWrapper<User> userQueryWrapper = new LambdaQueryWrapper<>();
         userQueryWrapper.eq(User::getPhone, user.getPhone());
         User one = userService.getOne(userQueryWrapper);
@@ -69,6 +87,24 @@ public class UserController {
         return Result.success(userVo);
     }
 
+    @PostMapping("/sendCode")
+    public Result<String> sendCode(@RequestBody User user) {
+        if(user.getPhone()==null){
+            throw new RuntimeException("字段缺失");
+        }
+        Object code = redisTemplate.opsForValue().get(user.getPhone());
+        if (code != null) {
+            throw new RuntimeException("验证码已经发送");
+        }else {
+            code = String.valueOf(Utils.generateValidateCode(4));
+            System.out.println("验证码："+code);
+            redisTemplate.opsForValue().set(user.getPhone(), code, 1,TimeUnit.MINUTES);
+            SendSmsMessage.send(user.getPhone(), (String) code);
+            return Result.success("ok");
+        }
+    }
+
+    @AnnoUpdateUser
     @GetMapping("/leaveRoom")
     public Result<String> leaveRoom(Integer roomId, HttpServletRequest request) {
         String infoByToken;
@@ -92,6 +128,7 @@ public class UserController {
         return Result.success("ok");
     }
 
+    @AnnoUpdateUser
     @GetMapping("/joinRoom")
     public Result<String> joinRoom(Integer roomId, HttpServletRequest request) {
         String infoByToken;
@@ -123,6 +160,7 @@ public class UserController {
         return Result.success("加入房间成功");
     }
 
+    @AnnoUpdateUser
     @GetMapping("/getUser")
     public Result<UserVo> getUser(HttpServletRequest request) {
         String uId = JwtConfig.getInfoByToken(request);
@@ -132,6 +170,7 @@ public class UserController {
         return Result.success(userVo);
     }
 
+    @AnnoUpdateUser
     @PostMapping("/update")
     public Result<UserVo> update(@RequestParam(required = false) String userName,
                                  @RequestParam(required = false) String avatarHash,
@@ -173,6 +212,13 @@ public class UserController {
         return Result.success(userVo);
     }
 
+
+    /**
+     * 这个是头像
+     * @param avatarPath
+     * @param response
+     * @throws Exception
+     */
     @GetMapping("/{avatarPath}")
     public void getAvatar(@PathVariable("avatarPath") String avatarPath, HttpServletResponse response) throws Exception {
         File file = new File("avatar");
@@ -192,9 +238,18 @@ public class UserController {
         }
     }
 
+    @AnnoUpdateUser
     @GetMapping("/allUser")
     public Result<List<UserVo>> getAllActiveUser() {
         List<UserVo> allUsers = SoketController.getAllUsers();
         return Result.success(allUsers);
     }
+
+    @AnnoUpdateUser
+    @AnnoLastVideoTogether
+    @GetMapping("/watchTogether")
+    public Result<String> watchTogether(){
+        return Result.success("成功");
+    }
+
 }

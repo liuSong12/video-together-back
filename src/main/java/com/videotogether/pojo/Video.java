@@ -1,42 +1,43 @@
 package com.videotogether.pojo;
 
-import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
-import java.time.LocalDateTime;
 import java.io.Serializable;
+import java.time.LocalDateTime;
+
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
 
 /**
  * <p>
- * 用户表
+ * 
  * </p>
  *
  * @author 裹个小脑
- * @since 2024-01-04
+ * @since 2024-01-09
  */
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
-@TableName("user")
-public class User implements Serializable {
+@TableName("video")
+@AllArgsConstructor
+@NoArgsConstructor
+public class Video implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    private String phone;
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    private String userName;
-    private String avatar;
-    @TableField(exist = false)
-    private String code;
 
-    private LocalDateTime createTime;
-    private LocalDateTime lastTogetherWatch;
-    private LocalDateTime lastUpdateTime;
+    private String videoHash;
+
+    private String videoName;
+
+    private LocalDateTime uploadTime;
 
 
 }

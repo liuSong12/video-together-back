@@ -1,8 +1,14 @@
 package com.videotogether.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.google.gson.Gson;
+import com.videotogether.anno.AnnoUpdateUser;
 import com.videotogether.pojo.Message;
 import com.videotogether.pojo.UploadFile;
+import com.videotogether.pojo.Video;
+import com.videotogether.service.impl.VideoServiceImpl;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
@@ -11,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.*;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping
@@ -18,6 +25,8 @@ public class UploadController {
     private final int BUFFER_SIZE = 1024 * 1024 * 5;
     @Autowired
     private Gson gson;
+    @Autowired
+    private VideoServiceImpl videoService;
 
     @PostMapping("/upload")
     public String upload(
@@ -47,11 +56,18 @@ public class UploadController {
     }
 
 
+    @AnnoUpdateUser
     @PostMapping("/merge")
     public String mergeRequest(@RequestBody UploadFile uploadFile) {
         new Thread(() -> {
             File hashDir = new File("upload", uploadFile.getFileHash());
             String fileName = uploadFile.getFileName();
+            try {
+                Video video = new Video(null, uploadFile.getFileHash()+uploadFile.getFileExtension(), fileName,null);
+                videoService.save(video);
+            }catch (Exception ignored){
+                ignored.printStackTrace();
+            }
             int i = fileName.lastIndexOf(".");
             File targetFile;
             if (i == -1) {
@@ -65,13 +81,10 @@ public class UploadController {
                 //这里通知可以边看边切
                 String json = gson.toJson(new Message(null, uploadFile.getFileHash(), null, "completeUpload", null));
                 SoketController.sendAllMessage(json);
-
-
                 sliceFile(uploadFile.getFileHash(), targetFile);
                 //告诉前端切片完成
                 String json2 = gson.toJson(new Message(null, uploadFile.getFileHash(), null, "completeSlice",null));
                 SoketController.sendAllMessage(json2);
-
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -115,6 +128,12 @@ public class UploadController {
         }
     }
 
+    /**
+     * 这里是获取ts切片的
+     * @param indexName
+     * @param response
+     * @throws Exception
+     */
     @GetMapping("/{indexName}")
     public void sliceIndex(@PathVariable("indexName") String indexName, HttpServletResponse response) throws Exception {
         String hashDir = indexName.split("-")[0];
@@ -131,6 +150,7 @@ public class UploadController {
     }
 
 
+    @AnnoUpdateUser
     @GetMapping("/getPoster")
     public void getPoster(@RequestParam String posterName, HttpServletResponse response) throws Exception {
         int i = posterName.lastIndexOf(".");
@@ -160,6 +180,7 @@ public class UploadController {
 
     }
 
+    @AnnoUpdateUser
     @GetMapping("/startView")
     public void sliceVideo(@RequestParam String videoName, HttpServletResponse response) throws Exception {
         int i = videoName.lastIndexOf(".");
@@ -276,21 +297,47 @@ public class UploadController {
         }
     }
 
+    /**
+     *
+     * @param name
+     * @return
+     */
+    @AnnoUpdateUser
     @GetMapping("/getVideoList")
-    public List<String> getVideoList(HttpServletResponse response) {
+    public List<Map<String,String>> getVideoList( @RequestParam(value = "name",required = false) String name) {
         File uploadDir = new File("upload");
         File[] files = uploadDir.listFiles();
-
-        ArrayList<String> fileList = new ArrayList<>();
+        System.out.println("name:"+name);
+        System.out.println("files:"+ Arrays.toString(files));
+        List<Map<String,String>> fileList = new ArrayList<>();
         for (File file : files) {
             if (file.isFile() && file.getName().endsWith(".mp4")) {
-                fileList.add(file.getName());
+                LambdaQueryWrapper<Video> wrapper = new LambdaQueryWrapper<>();
+                wrapper.eq(Video::getVideoHash, file.getName());
+                Video video = videoService.getOne(wrapper);
+                if(video!=null){
+                    HashMap<String, String> map = new HashMap<>();
+                    map.put("videName", video.getVideoName());
+                    map.put("fileHashName", video.getVideoHash());
+                    map.put("uploadTime",video.getUploadTime().toString());
+                    fileList.add(map);
+                }
             }
         }
 
-        return fileList;
+        Collections.sort(fileList, new Comparator<Map<String, String>>() {
+            @Override
+            public int compare(Map<String, String> o1, Map<String, String> o2) {
+                return o2.get("uploadTime").compareTo(o1.get("uploadTime"));
+            }
+        });
+
+        if(name!=null){
+            return fileList.stream().filter(v->v.get("videName").contains(name)).collect(Collectors.toList());
+        }else {
+            return fileList;
+        }
     }
 
-//    @GetMapping
 
 }

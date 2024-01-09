@@ -11,6 +11,7 @@ import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.rmi.RemoteException;
+import java.util.Arrays;
 
 @WebFilter
 public class TokenFilter implements Filter {
@@ -20,7 +21,8 @@ public class TokenFilter implements Filter {
         HttpServletRequest request = (HttpServletRequest) servletRequest;
         HttpServletResponse response = (HttpServletResponse) servletResponse;
         String requestURI = request.getRequestURI();
-        if (requestURI.contains("/user/login")||requestURI.contains(".ts")) {
+        String[] paths = {"/user/login","/user/sendCode"};
+        if (Arrays.asList(paths).contains(requestURI) || requestURI.contains(".ts")) {
             filterChain.doFilter(servletRequest, servletResponse);
             return;
         }
