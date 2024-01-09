@@ -1,6 +1,7 @@
 package com.videotogether.config;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -12,6 +13,8 @@ import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 
+import java.time.LocalDateTime;
+
 
 @Configuration
 public class ConfigBean {
@@ -22,7 +25,10 @@ public class ConfigBean {
 
     @Bean
     public Gson gson() {
-        return new Gson();
+        Gson gson = new GsonBuilder()
+                .setPrettyPrinting()
+                .registerTypeAdapter(LocalDateTime.class, new LocalDateAdapter()).create();
+        return gson;
     }
 
     @Bean

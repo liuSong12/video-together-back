@@ -259,7 +259,6 @@ public class UploadController {
             errorStream1.close();
 
         } catch (Exception e) {
-            System.out.println(e);
         }
 
 
@@ -307,8 +306,6 @@ public class UploadController {
     public List<Map<String,String>> getVideoList( @RequestParam(value = "name",required = false) String name) {
         File uploadDir = new File("upload");
         File[] files = uploadDir.listFiles();
-        System.out.println("name:"+name);
-        System.out.println("files:"+ Arrays.toString(files));
         List<Map<String,String>> fileList = new ArrayList<>();
         for (File file : files) {
             if (file.isFile() && file.getName().endsWith(".mp4")) {

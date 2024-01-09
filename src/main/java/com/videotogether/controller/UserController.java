@@ -97,7 +97,6 @@ public class UserController {
             throw new RuntimeException("验证码已经发送");
         }else {
             code = String.valueOf(Utils.generateValidateCode(4));
-            System.out.println("验证码："+code);
             redisTemplate.opsForValue().set(user.getPhone(), code, 1,TimeUnit.MINUTES);
             SendSmsMessage.send(user.getPhone(), (String) code);
             return Result.success("ok");

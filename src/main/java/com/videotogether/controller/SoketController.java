@@ -25,12 +25,18 @@ public class SoketController {
 
     private static UserServiceImpl userService;
 
+    private static Gson gson;
+
     @Autowired
     public void setUserService(UserServiceImpl userService) {
         SoketController.userService = userService;
     }
 
-    private static final Gson gson = new Gson();
+    @Autowired
+    public void setGson(Gson gson) {
+        SoketController.gson = gson;
+    }
+//    private static final Gson gson = new Gson();
     //与某个客户端的连接会话，需要通过它来给客户端发送数据
     private Session session;
     /**
@@ -118,7 +124,7 @@ public class SoketController {
                 sendRoomMessage(roomId, type, uId, msg);
                 break;
             case "chat":
-                ChatMsg chatMsg = gson.fromJson(msg.toString(), ChatMsg.class);
+                ChatMsg chatMsg = gson.fromJson(gson.toJson(msg), ChatMsg.class);
                 Integer from_uId = chatMsg.getFrom();
                 if (from_uId == null) {
                     return;
@@ -134,8 +140,7 @@ public class SoketController {
             case "answer":
             case "candidate":
             case "hangup":
-                System.out.println("type:"+type);
-                UserVo toId = gson.fromJson(new Gson().toJson(msg), UserVo.class);
+                UserVo toId = gson.fromJson(gson.toJson(msg), UserVo.class);
                 Integer id = toId.getId();
                 Object answer = toId.getAnswer();
                 Object candidate = toId.getCandidate();
