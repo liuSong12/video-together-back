@@ -24,6 +24,7 @@ target/
 /nbbuild/
 slicevideo
 upload
+target
 avatar
 /dist/
 /nbdist/
